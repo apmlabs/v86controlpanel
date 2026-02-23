@@ -66,6 +66,7 @@ Full project setup from zero to working v86 in browser.
 - **FreeDOS screen persisted on profile switch**: Added clearScreen() on stop/switch
 - **nginx root showed "Welcome to nginx"**: `location = /` with `root` doesn't work — moved `root`/`index` to server level
 - **git divergent branches**: Set `git config --global pull.rebase true`
+- **Waze/Reus "unable to load data"**: Frontend JS used absolute `/api/...` paths — changed to relative `api/...` so nginx proxy subpath works
 
 ### Decisions Made
 1. Static HTML approach (no framework)

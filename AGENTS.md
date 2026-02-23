@@ -221,6 +221,8 @@ v86controlpanel/
 - `emulator.destroy()` to fully clean up, but must also clear canvas manually
 - nginx `location = /` with `root` doesn't serve index.html — use server-level `root` + `index` instead
 - **Never use sed to edit config files** — read fully, write cleanly
+- **Frontend API paths must be relative** (`api/stats` not `/api/stats`) when served behind nginx reverse proxy at a subpath like `/waze/`
+- All projects on this server share one nginx config at `/etc/nginx/sites-available/dev-proxy`
 
 ### From webwars (Hedgewars WASM port)
 - Emscripten/WASM builds need careful memory management
