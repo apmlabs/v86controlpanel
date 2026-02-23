@@ -1,6 +1,6 @@
 # Amazon Q - v86 Control Panel Context
 
-**Last Updated**: 2026-02-23T10:08:00Z
+**Last Updated**: 2026-02-23T10:37:00Z
 **Working Directory**: `/home/ubuntu/mcpprojects/v86controlpanel/`
 **Status**: ✅ Basic v86 working, control panel live
 
@@ -67,6 +67,7 @@ Full project setup from zero to working v86 in browser.
 - **nginx root showed "Welcome to nginx"**: `location = /` with `root` doesn't work — moved `root`/`index` to server level
 - **git divergent branches**: Set `git config --global pull.rebase true`
 - **Waze/Reus "unable to load data"**: Frontend JS used absolute `/api/...` paths — changed to relative `api/...` so nginx proxy subpath works
+- **WebWars dev showed old UI**: Dev server serves from `build/wasm/bin/` which had stale HTML — copied `web/*.html` → `build/wasm/bin/`
 
 ### Decisions Made
 1. Static HTML approach (no framework)

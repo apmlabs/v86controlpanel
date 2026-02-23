@@ -27,11 +27,11 @@
 ---
 
 ## Current Status
-Last updated: 2026-02-23T10:08:00Z
+Last updated: 2026-02-23T10:37:00Z
 
 ### Project Status
 - **Phase**: Basic v86 working, control panel UI live
-- **Last Action**: FreeDOS boots, Linux boots, nginx landing page fixed
+- **Last Action**: All services verified working through nginx, webwars dev synced with prod
 - **Current Blocker**: None
 - **Target**: Working v86 control panel with Doom + SSH + project management
 
@@ -230,6 +230,7 @@ v86controlpanel/
 - Download progress bars essential for large files
 - systemd services for production deployment
 - Admin panel pattern: Flask + Leaflet for monitoring
+- **Dev server serves from `build/wasm/bin/`** — HTML files there can go stale vs `web/` source. Copy `web/*.html` → `build/wasm/bin/` after frontend changes
 
 ### From wazetracker
 - Single-file frontend (index.html) with Leaflet maps works great for dashboards
