@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# OS disk images (large, download separately)
+images/
+bios/
+
+# Saved VM states (large)
+states/
+
+# Build
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
