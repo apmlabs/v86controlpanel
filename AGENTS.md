@@ -42,10 +42,10 @@ Last updated: 2026-02-23T10:37:00Z
 | B | v86 Integration | ✅ COMPLETE | v86 npm package, FreeDOS + Linux boot working |
 | C | Control Panel UI | ✅ BASIC | Start/stop/reset/save/restore, VGA canvas, log panel |
 | D | nginx + Landing Page | ✅ COMPLETE | /v86/ route, Control Center landing page at / |
-| E | Doom on FreeDOS | ✅ COMPLETE | FreeDOS HD image + DOOM.EXE + DOOM1.WAD |
-| F | SSH / Terminal | ✅ BASIC | xterm.js serial console for Linux profile |
+| E | Doom on FreeDOS | ✅ COMPLETE | Boot floppy + HD image, auto-launches DOOM.EXE |
+| F | Serial Terminal | ✅ COMPLETE | xterm.js via v86 serial_container_xtermjs for Alpine |
 | G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
-| H | State Persistence | 🔲 TODO | Save/restore VM state via IndexedDB |
+| H | State Persistence | ✅ COMPLETE | Save/restore via IndexedDB, per-profile |
 | I | Networking | ✅ BASIC | fetch backend enabled for Linux profile |
 
 ### Infrastructure
@@ -182,8 +182,11 @@ v86controlpanel/
 └── images/                # OS disk images (gitignored, downloaded)
     ├── freedos722.img     # 720KB FreeDOS floppy
     ├── doom.img           # 16MB FreeDOS HD with DOOM.EXE + DOOM1.WAD
+    ├── doom_boot.img      # 720KB FreeDOS boot floppy (AUTOEXEC→C:\DOOM\DOOM.EXE)
     ├── linux.iso          # 6.3MB Buildroot Linux (busybox only)
-    └── alpine.iso         # 46MB Alpine Linux (apk, curl, ssh, python)```
+    ├── alpine.iso         # 46MB Alpine Linux ISO (kept as source)
+    ├── alpine-bzimage     # 6.3MB Alpine kernel (extracted from ISO)
+    └── alpine-initrd      # 6.7MB Alpine initramfs (extracted from ISO)```
 
 ---
 

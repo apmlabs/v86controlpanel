@@ -21,15 +21,16 @@ Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, 
 - ✅ systemd service `v86panel` on port 8087
 - ✅ nginx reverse proxy at `/v86/` with basic auth
 - ✅ Landing page at `https://54.80.204.92/` — Control Center with all project cards
-- ✅ Doom on FreeDOS: 16MB HD image with DOOM.EXE + DOOM1.WAD, auto-launches
-- ✅ xterm.js serial console for Linux profile
-- ✅ fetch networking backend for Linux (wget works)
+- ✅ Doom on FreeDOS: boot floppy + 16MB HD, AUTOEXEC auto-launches DOOM.EXE
+- ✅ Alpine Linux: bzimage+initrd boot (no ISOLINUX hang), serial console via xterm.js
+- ✅ xterm.js terminal: v86 serial_container_xtermjs, proper bidirectional I/O
+- ✅ State persistence: save/restore via IndexedDB, per-profile, survives page reload
+- ✅ fetch networking backend for Linux (wget/curl works after setup-interfaces)
 
 ### What's Next
-1. Add Doom on FreeDOS
-2. Add xterm.js serial console for Linux
-3. State persistence via IndexedDB
-4. Networking (fetch backend)
+1. SSH project manager from Alpine VM
+2. Multi-VM dashboard (tabs)
+3. Save state snapshots with names/timestamps
 
 ---
 
