@@ -231,7 +231,6 @@
 
         if (emulator) return;
         clearScreen();
-        const profile = profiles[currentProfile];
         const useTerminal = profile.useTerminal;
         showTerminal(useTerminal);
         log("Starting " + currentProfile + "...", "info");
