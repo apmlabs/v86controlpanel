@@ -100,9 +100,8 @@
 
     const profiles = {
         doom: {
-            fda: { url: "images/freedos722.img" },
-            hda: { url: "images/doom.img", async: false },
-            boot_order: 0x132,
+            fda: { url: "images/doom_boot.img" },
+            hda: { url: "images/doom.img", async: true, size: 16 * 1024 * 1024 },
             memory_size: 32 * 1024 * 1024,
         },
         freedos: {
@@ -175,30 +174,22 @@
         if (emulator) return;
         clearScreen();
         const profile = profiles[currentProfile];
-        const useTerminal = currentProfile === "linux";
-        showTerminal(useTerminal);
+        showTerminal(false);
         log("Starting " + currentProfile + "...", "info");
 
         const opts = {
             wasm_path: "node_modules/v86/build/v86.wasm",
             bios: { url: "bios/seabios.bin" },
             vga_bios: { url: "bios/vgabios.bin" },
-            screen_container: useTerminal ? null : document.getElementById("screen_container"),
+            screen_container: document.getElementById("screen_container"),
             memory_size: profile.memory_size || 64 * 1024 * 1024,
             vga_memory_size: 8 * 1024 * 1024,
             autostart: true,
             fastboot: true,
         };
 
-        // Copy profile disk/net options
-        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","boot_order","net_device"]) {
+        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","net_device"]) {
             if (profile[k] !== undefined) opts[k] = profile[k];
-        }
-
-        // Serial console for Linux
-        if (useTerminal) {
-            setupTerminal();
-            opts.serial_console_xtermjs = document.getElementById("terminal-wrap");
         }
 
         try {
@@ -224,13 +215,6 @@
                 setStatus("Downloading... " + pct + "%");
             }
         });
-
-        // For Linux with terminal, pipe serial output to xterm
-        if (useTerminal && term) {
-            emulator.add_listener("serial0-output-byte", (byte) => {
-                term.write(new Uint8Array([byte]));
-            });
-        }
     }
 
     function stopVM() {
@@ -239,8 +223,6 @@
         emulator.destroy();
         emulator = null;
         clearScreen();
-        showTerminal(false);
-        if (term) { term.dispose(); term = null; }
         setStatus("Stopped");
         setButtons(false);
     }
