@@ -3,10 +3,11 @@
 <head>
     <meta charset="utf-8">
     <title>v86 Control Panel</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
-        #header { background: #16213e; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+        #header { background: #16213e; padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         #header h1 { font-size: 18px; color: #0ff; }
         #controls { display: flex; gap: 8px; }
         #controls button {
@@ -30,14 +31,19 @@
         .profile-btn.active { border-color: #0ff; background: #0a3d62; }
         .profile-btn .label { font-weight: bold; }
         .profile-btn .desc { font-size: 11px; color: #888; margin-top: 2px; }
-        #content { flex: 1; display: flex; flex-direction: column; }
-        #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+        #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
         #screen_container { background: #000; border: 2px solid #333; overflow: hidden; }
         #screen_container div { white-space: pre; font: 14px monospace; line-height: 14px; }
         #screen_container canvas { display: none; }
+        #terminal-wrap {
+            display: none; flex: 1; background: #000; border: 2px solid #333;
+            margin: 8px; overflow: hidden;
+        }
         #log-area {
-            height: 120px; background: #0d0d1a; border-top: 1px solid #333;
+            height: 100px; background: #0d0d1a; border-top: 1px solid #333;
             overflow-y: auto; padding: 8px 12px; font: 12px monospace; color: #666;
+            flex-shrink: 0;
         }
         #log-area .err { color: #f44; }
         #log-area .ok { color: #3fb950; }
@@ -59,13 +65,17 @@
     </div>
     <div id="main">
         <div id="sidebar">
+            <div class="profile-btn" onclick="selectProfile('doom')" id="prof-doom">
+                <div class="label">💀 Doom</div>
+                <div class="desc">Doom on FreeDOS</div>
+            </div>
             <div class="profile-btn active" onclick="selectProfile('freedos')" id="prof-freedos">
                 <div class="label">🖥️ FreeDOS</div>
                 <div class="desc">DOS environment</div>
             </div>
             <div class="profile-btn" onclick="selectProfile('linux')" id="prof-linux">
                 <div class="label">🐧 Linux</div>
-                <div class="desc">Buildroot Linux</div>
+                <div class="desc">Buildroot + networking</div>
             </div>
         </div>
         <div id="content">
@@ -75,22 +85,32 @@
                     <canvas></canvas>
                 </div>
             </div>
+            <div id="terminal-wrap"></div>
             <div id="log-area"></div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
     <script src="node_modules/v86/build/libv86.js"></script>
     <script>
     let emulator = null;
     let savedState = null;
     let currentProfile = "freedos";
+    let term = null;
 
     const profiles = {
+        doom: {
+            fda: { url: "images/freedos722.img" },
+            hda: { url: "images/doom.img", async: false },
+            boot_order: 0x132,
+            memory_size: 32 * 1024 * 1024,
+        },
         freedos: {
             fda: { url: "images/freedos722.img" },
         },
         linux: {
             cdrom: { url: "images/linux.iso" },
+            net_device: { type: "virtio", relay_url: "fetch" },
         },
     };
 
@@ -125,6 +145,22 @@
         c.querySelector("div").textContent = "";
     }
 
+    function showTerminal(show) {
+        document.getElementById("terminal-wrap").style.display = show ? "flex" : "none";
+        document.getElementById("screen-area").style.display = show ? "none" : "flex";
+    }
+
+    function setupTerminal() {
+        if (term) { term.dispose(); term = null; }
+        const wrap = document.getElementById("terminal-wrap");
+        wrap.innerHTML = "";
+        term = new window.Terminal({ cursorBlink: true, fontSize: 14, theme: { background: "#0d0d1a" } });
+        term.open(wrap);
+        term.onData(data => {
+            if (emulator) emulator.serial0_send(data);
+        });
+    }
+
     function selectProfile(name) {
         if (name === currentProfile) return;
         log("Switching profile to " + name, "info");
@@ -138,19 +174,31 @@
         if (emulator) return;
         clearScreen();
         const profile = profiles[currentProfile];
+        const useTerminal = currentProfile === "linux";
+        showTerminal(useTerminal);
         log("Starting " + currentProfile + "...", "info");
 
         const opts = {
             wasm_path: "node_modules/v86/build/v86.wasm",
             bios: { url: "bios/seabios.bin" },
             vga_bios: { url: "bios/vgabios.bin" },
-            screen_container: document.getElementById("screen_container"),
-            memory_size: 64 * 1024 * 1024,
+            screen_container: useTerminal ? null : document.getElementById("screen_container"),
+            memory_size: profile.memory_size || 64 * 1024 * 1024,
             vga_memory_size: 8 * 1024 * 1024,
             autostart: true,
             fastboot: true,
-            ...profile,
         };
+
+        // Copy profile disk/net options
+        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","boot_order","net_device"]) {
+            if (profile[k] !== undefined) opts[k] = profile[k];
+        }
+
+        // Serial console for Linux
+        if (useTerminal) {
+            setupTerminal();
+            opts.serial_console_xtermjs = document.getElementById("terminal-wrap");
+        }
 
         try {
             emulator = new V86(opts);
@@ -175,6 +223,13 @@
                 setStatus("Downloading... " + pct + "%");
             }
         });
+
+        // For Linux with terminal, pipe serial output to xterm
+        if (useTerminal && term) {
+            emulator.add_listener("serial0-output-byte", (byte) => {
+                term.write(new Uint8Array([byte]));
+            });
+        }
     }
 
     function stopVM() {
@@ -183,6 +238,8 @@
         emulator.destroy();
         emulator = null;
         clearScreen();
+        showTerminal(false);
+        if (term) { term.dispose(); term = null; }
         setStatus("Stopped");
         setButtons(false);
     }

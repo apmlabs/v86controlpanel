@@ -42,11 +42,11 @@ Last updated: 2026-02-23T10:37:00Z
 | B | v86 Integration | ✅ COMPLETE | v86 npm package, FreeDOS + Linux boot working |
 | C | Control Panel UI | ✅ BASIC | Start/stop/reset/save/restore, VGA canvas, log panel |
 | D | nginx + Landing Page | ✅ COMPLETE | /v86/ route, Control Center landing page at / |
-| E | Doom on FreeDOS | 🔲 TODO | FreeDOS image + DOOM.WAD, boot & play |
-| F | SSH / Terminal | 🔲 TODO | Alpine Linux image + xterm.js serial console |
+| E | Doom on FreeDOS | ✅ COMPLETE | FreeDOS HD image + DOOM.EXE + DOOM1.WAD |
+| F | SSH / Terminal | ✅ BASIC | xterm.js serial console for Linux profile |
 | G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
 | H | State Persistence | 🔲 TODO | Save/restore VM state via IndexedDB |
-| I | Networking | 🔲 TODO | fetch backend for HTTP, wisp for TCP |
+| I | Networking | ✅ BASIC | fetch backend enabled for Linux profile |
 
 ### Infrastructure
 - **Public IP**: 54.80.204.92
@@ -180,6 +180,7 @@ v86controlpanel/
 │   └── vgabios.bin        # 36KB from v86 repo
 └── images/                # OS disk images (gitignored, downloaded)
     ├── freedos722.img     # 720KB FreeDOS floppy
+    ├── doom.img           # 16MB FreeDOS HD with DOOM.EXE + DOOM1.WAD
     └── linux.iso          # 6.3MB Buildroot Linux
 ```
 

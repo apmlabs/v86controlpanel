@@ -21,6 +21,9 @@ Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, 
 - ✅ systemd service `v86panel` on port 8087
 - ✅ nginx reverse proxy at `/v86/` with basic auth
 - ✅ Landing page at `https://54.80.204.92/` — Control Center with all project cards
+- ✅ Doom on FreeDOS: 16MB HD image with DOOM.EXE + DOOM1.WAD, auto-launches
+- ✅ xterm.js serial console for Linux profile
+- ✅ fetch networking backend for Linux (wget works)
 
 ### What's Next
 1. Add Doom on FreeDOS
