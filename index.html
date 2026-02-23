@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>v86 Control Panel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; }
+        #header { background: #16213e; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+        #header h1 { font-size: 18px; color: #0ff; }
+        #controls { display: flex; gap: 8px; }
+        #controls button {
+            padding: 6px 16px; border: 1px solid #0ff; background: transparent;
+            color: #0ff; cursor: pointer; font-size: 13px; border-radius: 3px;
+        }
+        #controls button:hover { background: #0ff2; }
+        #controls button:disabled { opacity: 0.3; cursor: default; }
+        #status { margin-left: auto; font-size: 13px; color: #888; }
+        #main { display: flex; height: calc(100vh - 48px); }
+        #sidebar {
+            width: 200px; background: #16213e; padding: 12px;
+            display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #333;
+            flex-shrink: 0;
+        }
+        .profile-btn {
+            padding: 10px; background: #1a1a2e; border: 1px solid #333;
+            color: #e0e0e0; cursor: pointer; border-radius: 4px; text-align: left; font-size: 13px;
+        }
+        .profile-btn:hover { border-color: #0ff; }
+        .profile-btn.active { border-color: #0ff; background: #0a3d62; }
+        .profile-btn .label { font-weight: bold; }
+        .profile-btn .desc { font-size: 11px; color: #888; margin-top: 2px; }
+        #content { flex: 1; display: flex; flex-direction: column; }
+        #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; }
+        #screen_container { background: #000; border: 2px solid #333; overflow: hidden; }
+        #screen_container div { white-space: pre; font: 14px monospace; line-height: 14px; }
+        #screen_container canvas { display: none; }
+        #log-area {
+            height: 120px; background: #0d0d1a; border-top: 1px solid #333;
+            overflow-y: auto; padding: 8px 12px; font: 12px monospace; color: #666;
+        }
+        #log-area .err { color: #f44; }
+        #log-area .ok { color: #3fb950; }
+        #log-area .info { color: #58a6ff; }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>⚡ v86 Control Panel</h1>
+        <div id="controls">
+            <button id="btn-start" onclick="startVM()">▶ Start</button>
+            <button id="btn-stop" onclick="stopVM()" disabled>⏹ Stop</button>
+            <button id="btn-restart" onclick="restartVM()" disabled>🔄 Restart</button>
+            <button id="btn-save" onclick="saveState()" disabled>💾 Save</button>
+            <button id="btn-restore" onclick="restoreState()" disabled>📂 Restore</button>
+            <button id="btn-fullscreen" onclick="goFullscreen()" disabled>⛶ Fullscreen</button>
+        </div>
+        <div id="status">Stopped</div>
+    </div>
+    <div id="main">
+        <div id="sidebar">
+            <div class="profile-btn active" onclick="selectProfile('freedos')" id="prof-freedos">
+                <div class="label">🖥️ FreeDOS</div>
+                <div class="desc">DOS environment</div>
+            </div>
+            <div class="profile-btn" onclick="selectProfile('linux')" id="prof-linux">
+                <div class="label">🐧 Linux</div>
+                <div class="desc">Buildroot Linux</div>
+            </div>
+        </div>
+        <div id="content">
+            <div id="screen-area">
+                <div id="screen_container">
+                    <div></div>
+                    <canvas></canvas>
+                </div>
+            </div>
+            <div id="log-area"></div>
+        </div>
+    </div>
+
+    <script src="node_modules/v86/build/libv86.js"></script>
+    <script>
+    let emulator = null;
+    let savedState = null;
+    let currentProfile = "freedos";
+
+    const profiles = {
+        freedos: {
+            fda: { url: "images/freedos722.img" },
+        },
+        linux: {
+            cdrom: { url: "images/linux.iso" },
+        },
+    };
+
+    function log(msg, cls) {
+        const el = document.getElementById("log-area");
+        const line = document.createElement("div");
+        line.className = cls || "";
+        line.textContent = new Date().toLocaleTimeString() + " " + msg;
+        el.appendChild(line);
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function setStatus(text) {
+        document.getElementById("status").textContent = text;
+    }
+
+    function setButtons(running) {
+        document.getElementById("btn-start").disabled = running;
+        document.getElementById("btn-stop").disabled = !running;
+        document.getElementById("btn-restart").disabled = !running;
+        document.getElementById("btn-save").disabled = !running;
+        document.getElementById("btn-restore").disabled = !savedState;
+        document.getElementById("btn-fullscreen").disabled = !running;
+    }
+
+    function clearScreen() {
+        const c = document.getElementById("screen_container");
+        const canvas = c.querySelector("canvas");
+        canvas.style.display = "none";
+        const ctx = canvas.getContext("2d");
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        c.querySelector("div").textContent = "";
+    }
+
+    function selectProfile(name) {
+        if (name === currentProfile) return;
+        log("Switching profile to " + name, "info");
+        currentProfile = name;
+        document.querySelectorAll(".profile-btn").forEach(b => b.classList.remove("active"));
+        document.getElementById("prof-" + name).classList.add("active");
+        if (emulator) stopVM();
+    }
+
+    function startVM() {
+        if (emulator) return;
+        clearScreen();
+        const profile = profiles[currentProfile];
+        log("Starting " + currentProfile + "...", "info");
+
+        const opts = {
+            wasm_path: "node_modules/v86/build/v86.wasm",
+            bios: { url: "bios/seabios.bin" },
+            vga_bios: { url: "bios/vgabios.bin" },
+            screen_container: document.getElementById("screen_container"),
+            memory_size: 64 * 1024 * 1024,
+            vga_memory_size: 8 * 1024 * 1024,
+            autostart: true,
+            fastboot: true,
+            ...profile,
+        };
+
+        try {
+            emulator = new V86(opts);
+        } catch (e) {
+            log("Failed to create emulator: " + e.message, "err");
+            return;
+        }
+
+        setStatus("Booting " + currentProfile + "...");
+        setButtons(true);
+
+        emulator.add_listener("emulator-ready", () => {
+            log(currentProfile + " emulator ready", "ok");
+            setStatus(currentProfile + " — Running");
+        });
+        emulator.add_listener("emulator-started", () => log("Emulator started", "ok"));
+        emulator.add_listener("emulator-stopped", () => log("Emulator stopped"));
+        emulator.add_listener("download-error", (e) => log("Download error: " + JSON.stringify(e), "err"));
+        emulator.add_listener("download-progress", (e) => {
+            if (e.loaded && e.total) {
+                const pct = ((e.loaded / e.total) * 100).toFixed(0);
+                setStatus("Downloading... " + pct + "%");
+            }
+        });
+    }
+
+    function stopVM() {
+        if (!emulator) return;
+        log("Stopping VM...");
+        emulator.destroy();
+        emulator = null;
+        clearScreen();
+        setStatus("Stopped");
+        setButtons(false);
+    }
+
+    function restartVM() {
+        if (!emulator) return;
+        log("Restarting VM...", "info");
+        emulator.restart();
+        setStatus("Restarting " + currentProfile + "...");
+    }
+
+    async function saveState() {
+        if (!emulator) return;
+        log("Saving state...", "info");
+        setStatus("Saving state...");
+        savedState = await emulator.save_state();
+        const mb = (savedState.byteLength / 1024 / 1024).toFixed(1);
+        log("State saved: " + mb + " MB", "ok");
+        setStatus("State saved (" + mb + " MB)");
+        document.getElementById("btn-restore").disabled = false;
+    }
+
+    async function restoreState() {
+        if (!savedState) return;
+        if (!emulator) startVM();
+        setTimeout(async () => {
+            log("Restoring state...", "info");
+            setStatus("Restoring state...");
+            await emulator.restore_state(savedState);
+            log("State restored", "ok");
+            setStatus(currentProfile + " — Restored");
+        }, 100);
+    }
+
+    function goFullscreen() {
+        if (!emulator) return;
+        emulator.screen_go_fullscreen();
+    }
+
+    log("v86 Control Panel loaded", "ok");
+    </script>
+</body>
+</html>

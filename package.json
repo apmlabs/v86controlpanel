@@ -1,0 +1,24 @@
+{
+  "name": "v86controlpanel",
+  "version": "1.0.0",
+  "description": "Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, manage projects via SSH, all from a single web UI",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apmlabs/v86controlpanel.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/apmlabs/v86controlpanel/issues"
+  },
+  "homepage": "https://github.com/apmlabs/v86controlpanel#readme",
+  "dependencies": {
+    "v86": "^0.5.319"
+  }
+}

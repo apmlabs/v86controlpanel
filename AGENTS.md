@@ -15,12 +15,23 @@
 
 ---
 
+## ⚠️ AGENT RULES
+
+1. **Always update AGENTS.md and AmazonQ.md** after significant changes, then push to GitHub
+2. **When user says "remember"** — write that info into AGENTS.md
+3. **Never use sed to edit files** — read files fully with cat/fs_read, then write with fs_write
+4. **Read files before editing** — always read the full file first, plan changes, then write
+5. **Step back and plan** before making changes — don't rush into edits
+6. **Push to GitHub** after updating context files
+
+---
+
 ## Current Status
-Last updated: 2026-02-23T09:53:00Z
+Last updated: 2026-02-23T10:08:00Z
 
 ### Project Status
-- **Phase**: Research & Setup
-- **Last Action**: Repo created, context files initialized
+- **Phase**: Basic v86 working, control panel UI live
+- **Last Action**: FreeDOS boots, Linux boots, nginx landing page fixed
 - **Current Blocker**: None
 - **Target**: Working v86 control panel with Doom + SSH + project management
 
@@ -28,13 +39,22 @@ Last updated: 2026-02-23T09:53:00Z
 | Track | Component | Status | Next Action |
 |-------|-----------|--------|-------------|
 | A | Repo & Context Files | ✅ COMPLETE | AGENTS.md, AmazonQ.md, README.md |
-| B | v86 Integration | 🔲 TODO | Embed v86 npm package, boot a Linux image |
-| C | Control Panel UI | 🔲 TODO | Start/stop/reset, VGA canvas, serial terminal |
-| D | Doom on FreeDOS | 🔲 TODO | FreeDOS image + DOOM.WAD, boot & play |
-| E | SSH / Terminal | 🔲 TODO | Alpine Linux image + xterm.js serial console |
-| F | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
-| G | State Persistence | 🔲 TODO | Save/restore VM state via IndexedDB |
-| H | Networking | 🔲 TODO | fetch backend for HTTP, wisp for TCP |
+| B | v86 Integration | ✅ COMPLETE | v86 npm package, FreeDOS + Linux boot working |
+| C | Control Panel UI | ✅ BASIC | Start/stop/reset/save/restore, VGA canvas, log panel |
+| D | nginx + Landing Page | ✅ COMPLETE | /v86/ route, Control Center landing page at / |
+| E | Doom on FreeDOS | 🔲 TODO | FreeDOS image + DOOM.WAD, boot & play |
+| F | SSH / Terminal | 🔲 TODO | Alpine Linux image + xterm.js serial console |
+| G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
+| H | State Persistence | 🔲 TODO | Save/restore VM state via IndexedDB |
+| I | Networking | 🔲 TODO | fetch backend for HTTP, wisp for TCP |
+
+### Infrastructure
+- **Public IP**: 54.80.204.92
+- **Landing page**: https://54.80.204.92/ (Control Center with all project cards)
+- **v86 panel**: https://54.80.204.92/v86/
+- **Auth**: basic auth (same as all other projects)
+- **Dev server**: systemd service `v86panel` on port 8087
+- **nginx**: `/etc/nginx/sites-available/dev-proxy` — v86panel upstream added
 
 ---
 
@@ -109,6 +129,8 @@ emulator.eject_cdrom();
 emulator.add_listener("emulator-ready", () => { ... });
 emulator.add_listener("emulator-started", () => { ... });
 emulator.add_listener("emulator-stopped", () => { ... });
+emulator.add_listener("download-error", (e) => { ... });
+emulator.add_listener("download-progress", (e) => { ... });
 ```
 
 ### Networking Backends
@@ -125,11 +147,10 @@ fetch backend special: `http://<port>.external` → localhost:<port> on host.
 From v86 demos (known working):
 - **FreeDOS** — perfect for Doom, tiny, instant boot
 - **Alpine Linux** — minimal Linux, good for SSH/terminal
-- **Buildroot Linux** — custom minimal images
+- **Buildroot Linux** — custom minimal images (we use this: linux.iso 6.3MB)
 - **Arch Linux 32** — fuller Linux experience
 - **Windows 98/95** — retro computing
 - **KolibriOS** — tiny graphical OS
-- **9front, Haiku, ReactOS** — various
 
 ### State Images (Instant Boot)
 - Save VM state → compressed .bin.zst file
@@ -145,12 +166,7 @@ From v86 demos (known working):
 </div>
 ```
 
-### Build/Embed Options
-1. **npm package**: `npm install v86` — works with Vite/React/Next/Webpack
-2. **Release download**: `libv86.js` from GitHub releases
-3. **Build from source**: needs Rust (wasm32-unknown-unknown), clang, make, node
-
-### Project Structure (Planned)
+### Project Structure
 ```
 v86controlpanel/
 ├── AGENTS.md              # Agent context (committed)
@@ -158,14 +174,13 @@ v86controlpanel/
 ├── README.md              # User docs
 ├── .gitignore
 ├── index.html             # Main control panel UI
-├── package.json           # npm deps (v86, xterm)
-├── src/
-│   ├── panel.js           # Control panel logic
-│   ├── vm-profiles.js     # OS image configs (FreeDOS, Alpine, etc.)
-│   └── style.css          # UI styling
-├── bios/                  # SeaBIOS + VGA BIOS (from v86)
-├── images/                # OS disk images (gitignored, large)
-└── states/                # Saved VM states (gitignored)
+├── package.json           # npm deps (v86)
+├── bios/                  # SeaBIOS + VGA BIOS (gitignored, downloaded)
+│   ├── seabios.bin        # 128KB from v86 repo
+│   └── vgabios.bin        # 36KB from v86 repo
+└── images/                # OS disk images (gitignored, downloaded)
+    ├── freedos722.img     # 720KB FreeDOS floppy
+    └── linux.iso          # 6.3MB Buildroot Linux
 ```
 
 ---
@@ -196,7 +211,16 @@ v86controlpanel/
 
 ---
 
-## 🧠 LESSONS FROM OTHER PROJECTS
+## 🧠 LESSONS LEARNED
+
+### From this project
+- v86 npm package works out of the box — just need bios files + disk images
+- BIOS files: download from `https://github.com/copy/v86/raw/master/bios/`
+- Demo images: download from `https://i.copy.sh/{freedos722.img,linux.iso,...}`
+- Screen container needs exact HTML structure (div + canvas)
+- `emulator.destroy()` to fully clean up, but must also clear canvas manually
+- nginx `location = /` with `root` doesn't serve index.html — use server-level `root` + `index` instead
+- **Never use sed to edit config files** — read fully, write cleanly
 
 ### From webwars (Hedgewars WASM port)
 - Emscripten/WASM builds need careful memory management
@@ -208,7 +232,6 @@ v86controlpanel/
 ### From wazetracker
 - Single-file frontend (index.html) with Leaflet maps works great for dashboards
 - SQLite for local persistence
-- APScheduler for background tasks
 - Simple Flask API backend
 
 ### From onyxpoker
@@ -232,17 +255,32 @@ v86controlpanel/
 ```bash
 npm install v86
 ```
-Includes libv86.js + v86.wasm. For bundlers (Vite/Webpack), the WASM file needs to be served as a static asset.
+Includes libv86.js + v86.wasm. Python http.server serves it fine for dev.
 
 ### BIOS Files Required
-- `seabios.bin` — from v86 releases or build
-- `vgabios.bin` — from v86 releases or build
-These are ~256KB total, can be committed or fetched.
+```bash
+curl -sL -o bios/seabios.bin "https://github.com/copy/v86/raw/master/bios/seabios.bin"
+curl -sL -o bios/vgabios.bin "https://github.com/copy/v86/raw/master/bios/vgabios.bin"
+```
 
 ### Disk Image Sources
-- v86 demo images: `https://i.copy.sh/{freedos722.img,linux.iso,...}`
-- Custom Alpine: build via Dockerfile in `tools/docker/alpine/` of v86 repo
-- Custom Buildroot: https://github.com/humphd/browser-vm
+```bash
+curl --compressed -sL -o images/freedos722.img "https://i.copy.sh/freedos722.img"
+curl --compressed -sL -o images/linux.iso "https://i.copy.sh/linux.iso"
+```
+
+### systemd Service
+```
+/etc/systemd/system/v86panel.service
+WorkingDirectory=/home/ubuntu/mcpprojects/v86controlpanel
+ExecStart=/usr/bin/python3 -m http.server 8087
+```
+
+### nginx Config
+- Upstream: `v86panel` → `127.0.0.1:8087`
+- Location: `/v86/` → `proxy_pass http://v86panel/`
+- Landing page: `/var/www/cc/index.html` served at `/`
+- Config file: `/etc/nginx/sites-available/dev-proxy`
 
 ### IndexedDB for Persistence
 - Store VM state snapshots (can be large, 50-200MB)
@@ -253,5 +291,4 @@ These are ~256KB total, can be committed or fetched.
 - Use `initial_state` for instant boot (skip BIOS/kernel)
 - `fastboot: true` skips BIOS menu
 - VirtIO devices faster than legacy emulation
-- `disable_jit: false` (default) — keep JIT on for performance
 - Memory: 64MB default, increase for heavier OSes
