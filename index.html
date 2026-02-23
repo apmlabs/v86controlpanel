@@ -135,10 +135,12 @@
         dsl: {
             cdrom: { url: "images/dsl.iso", size: 52824064, async: false },
             memory_size: 256 * 1024 * 1024,
+            net_device: { type: "virtio", relay_url: "fetch" },
         },
         tinycore: {
             cdrom: { url: "images/tinycore.iso", size: 25165824, async: false },
             memory_size: 256 * 1024 * 1024,
+            net_device: { type: "virtio", relay_url: "fetch" },
         },
         kolibri: {
             fda: { url: "images/kolibri.img", size: 1474560 },
