@@ -47,6 +47,7 @@ Last updated: 2026-02-23T10:37:00Z
 | G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
 | H | State Persistence | ✅ COMPLETE | Save/restore via IndexedDB, per-profile |
 | I | Networking | ✅ BASIC | fetch backend enabled for Linux profile |
+| J | Chromium noVNC | ✅ COMPLETE | Real Chromium via Xvfb + x11vnc + websockify + noVNC |
 
 ### Infrastructure
 - **Public IP**: 54.80.204.92
