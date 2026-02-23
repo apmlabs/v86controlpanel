@@ -32,14 +32,11 @@
         .profile-btn .label { font-weight: bold; }
         .profile-btn .desc { font-size: 11px; color: #888; margin-top: 2px; }
         #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+        #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; }
         #screen_container { background: #000; border: 2px solid #333; overflow: hidden; }
         #screen_container div { white-space: pre; font: 14px monospace; line-height: 14px; }
         #screen_container canvas { display: none; }
-        #terminal-wrap {
-            display: none; flex: 1; background: #000; border: 2px solid #333;
-            margin: 8px; overflow: hidden;
-        }
+        #terminal-wrap { display: none; flex: 1; background: #000; border: 2px solid #333; margin: 8px; overflow: hidden; }
         #log-area {
             height: 100px; background: #0d0d1a; border-top: 1px solid #333;
             overflow-y: auto; padding: 8px 12px; font: 12px monospace; color: #666;
@@ -75,7 +72,7 @@
             </div>
             <div class="profile-btn" onclick="selectProfile('linux')" id="prof-linux">
                 <div class="label">🐧 Linux</div>
-                <div class="desc">Alpine Linux + curl</div>
+                <div class="desc">Alpine Linux terminal</div>
             </div>
         </div>
         <div id="content">
@@ -96,7 +93,8 @@
     let emulator = null;
     let savedState = null;
     let currentProfile = "freedos";
-    let term = null;
+    const DB_NAME = "v86states";
+    const DB_STORE = "states";
 
     const profiles = {
         doom: {
@@ -108,11 +106,42 @@
             fda: { url: "images/freedos722.img" },
         },
         linux: {
-            cdrom: { url: "images/alpine.iso" },
+            bzimage: { url: "images/alpine-bzimage" },
+            initrd: { url: "images/alpine-initrd" },
+            cmdline: "console=ttyS0 modules=loop,squashfs,sd-mod,usb-storage quiet",
             memory_size: 128 * 1024 * 1024,
             net_device: { type: "virtio", relay_url: "fetch" },
+            useTerminal: true,
         },
     };
+
+    // --- IndexedDB helpers ---
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+    async function dbPut(key, value) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, "readwrite");
+            tx.objectStore(DB_STORE).put(value, key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+    async function dbGet(key) {
+        const db = await openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(DB_STORE, "readonly");
+            const req = tx.objectStore(DB_STORE).get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
 
     function log(msg, cls) {
         const el = document.getElementById("log-area");
@@ -123,16 +152,13 @@
         el.scrollTop = el.scrollHeight;
     }
 
-    function setStatus(text) {
-        document.getElementById("status").textContent = text;
-    }
+    function setStatus(text) { document.getElementById("status").textContent = text; }
 
     function setButtons(running) {
         document.getElementById("btn-start").disabled = running;
         document.getElementById("btn-stop").disabled = !running;
         document.getElementById("btn-restart").disabled = !running;
         document.getElementById("btn-save").disabled = !running;
-        document.getElementById("btn-restore").disabled = !savedState;
         document.getElementById("btn-fullscreen").disabled = !running;
     }
 
@@ -150,52 +176,54 @@
         document.getElementById("screen-area").style.display = show ? "none" : "flex";
     }
 
-    function setupTerminal() {
-        if (term) { term.dispose(); term = null; }
-        const wrap = document.getElementById("terminal-wrap");
-        wrap.innerHTML = "";
-        term = new window.Terminal({ cursorBlink: true, fontSize: 14, theme: { background: "#0d0d1a" } });
-        term.open(wrap);
-        term.onData(data => {
-            if (emulator) emulator.serial0_send(data);
-        });
-    }
-
     function selectProfile(name) {
         if (name === currentProfile) return;
-        log("Switching profile to " + name, "info");
+        if (emulator) stopVM();
         currentProfile = name;
         document.querySelectorAll(".profile-btn").forEach(b => b.classList.remove("active"));
         document.getElementById("prof-" + name).classList.add("active");
-        if (emulator) stopVM();
+        log("Selected " + name, "info");
+        checkSavedState();
+    }
+
+    async function checkSavedState() {
+        const state = await dbGet(currentProfile).catch(() => null);
+        document.getElementById("btn-restore").disabled = !state;
     }
 
     function startVM() {
         if (emulator) return;
         clearScreen();
         const profile = profiles[currentProfile];
-        showTerminal(false);
+        const useTerminal = profile.useTerminal;
+        showTerminal(useTerminal);
         log("Starting " + currentProfile + "...", "info");
 
         const opts = {
             wasm_path: "node_modules/v86/build/v86.wasm",
             bios: { url: "bios/seabios.bin" },
             vga_bios: { url: "bios/vgabios.bin" },
-            screen_container: document.getElementById("screen_container"),
             memory_size: profile.memory_size || 64 * 1024 * 1024,
             vga_memory_size: 8 * 1024 * 1024,
             autostart: true,
             fastboot: true,
         };
 
-        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","net_device"]) {
+        if (useTerminal) {
+            // xterm.js serial terminal — v86 handles the wiring
+            opts.serial_container_xtermjs = document.getElementById("terminal-wrap");
+        } else {
+            opts.screen_container = document.getElementById("screen_container");
+        }
+
+        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","cmdline","net_device"]) {
             if (profile[k] !== undefined) opts[k] = profile[k];
         }
 
         try {
             emulator = new V86(opts);
         } catch (e) {
-            log("Failed to create emulator: " + e.message, "err");
+            log("Failed: " + e.message, "err");
             return;
         }
 
@@ -203,17 +231,12 @@
         setButtons(true);
 
         emulator.add_listener("emulator-ready", () => {
-            log(currentProfile + " emulator ready", "ok");
+            log(currentProfile + " ready", "ok");
             setStatus(currentProfile + " — Running");
         });
-        emulator.add_listener("emulator-started", () => log("Emulator started", "ok"));
-        emulator.add_listener("emulator-stopped", () => log("Emulator stopped"));
         emulator.add_listener("download-error", (e) => log("Download error: " + JSON.stringify(e), "err"));
         emulator.add_listener("download-progress", (e) => {
-            if (e.loaded && e.total) {
-                const pct = ((e.loaded / e.total) * 100).toFixed(0);
-                setStatus("Downloading... " + pct + "%");
-            }
+            if (e.loaded && e.total) setStatus("Downloading... " + ((e.loaded / e.total) * 100 | 0) + "%");
         });
     }
 
@@ -223,38 +246,50 @@
         emulator.destroy();
         emulator = null;
         clearScreen();
+        showTerminal(false);
         setStatus("Stopped");
         setButtons(false);
     }
 
     function restartVM() {
         if (!emulator) return;
-        log("Restarting VM...", "info");
+        log("Restarting...", "info");
         emulator.restart();
-        setStatus("Restarting " + currentProfile + "...");
     }
 
     async function saveState() {
         if (!emulator) return;
         log("Saving state...", "info");
-        setStatus("Saving state...");
-        savedState = await emulator.save_state();
-        const mb = (savedState.byteLength / 1024 / 1024).toFixed(1);
-        log("State saved: " + mb + " MB", "ok");
-        setStatus("State saved (" + mb + " MB)");
-        document.getElementById("btn-restore").disabled = false;
+        setStatus("Saving...");
+        try {
+            const state = await emulator.save_state();
+            await dbPut(currentProfile, state);
+            savedState = state;
+            const mb = (state.byteLength / 1024 / 1024).toFixed(1);
+            log("State saved to IndexedDB: " + mb + " MB", "ok");
+            setStatus("Saved (" + mb + " MB)");
+            document.getElementById("btn-restore").disabled = false;
+        } catch (e) {
+            log("Save failed: " + e.message, "err");
+            setStatus("Save failed");
+        }
     }
 
     async function restoreState() {
-        if (!savedState) return;
-        if (!emulator) startVM();
-        setTimeout(async () => {
+        try {
+            const state = savedState || await dbGet(currentProfile);
+            if (!state) { log("No saved state", "err"); return; }
+            if (!emulator) startVM();
+            // Wait for emulator to initialize before restoring
+            await new Promise(r => setTimeout(r, 200));
             log("Restoring state...", "info");
-            setStatus("Restoring state...");
-            await emulator.restore_state(savedState);
+            await emulator.restore_state(state);
+            savedState = state;
             log("State restored", "ok");
             setStatus(currentProfile + " — Restored");
-        }, 100);
+        } catch (e) {
+            log("Restore failed: " + e.message, "err");
+        }
     }
 
     function goFullscreen() {
@@ -263,6 +298,7 @@
     }
 
     log("v86 Control Panel loaded", "ok");
+    checkSavedState();
     </script>
 </body>
 </html>
