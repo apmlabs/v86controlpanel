@@ -110,10 +110,7 @@
     <script src="node_modules/v86/build/libv86.js"></script>
     <script>
     let emulator = null;
-    let savedState = null;
     let currentProfile = "freedos";
-    const DB_NAME = "v86states";
-    const DB_STORE = "states";
 
     const profiles = {
         doom: {
@@ -148,32 +145,19 @@
         chromium: { noVNC: true },
     };
 
-    // --- IndexedDB helpers ---
-    function openDB() {
-        return new Promise((resolve, reject) => {
-            const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
+    // --- Server-side state API ---
+    async function stateSave(profile, data) {
+        const resp = await fetch("api/states/" + profile, { method: "PUT", body: data });
+        return resp.json();
     }
-    async function dbPut(key, value) {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(DB_STORE, "readwrite");
-            tx.objectStore(DB_STORE).put(value, key);
-            tx.oncomplete = () => resolve();
-            tx.onerror = () => reject(tx.error);
-        });
+    async function stateLoad(profile) {
+        const resp = await fetch("api/states/" + profile);
+        if (!resp.ok) return null;
+        return resp.arrayBuffer();
     }
-    async function dbGet(key) {
-        const db = await openDB();
-        return new Promise((resolve, reject) => {
-            const tx = db.transaction(DB_STORE, "readonly");
-            const req = tx.objectStore(DB_STORE).get(key);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
+    async function stateList() {
+        const resp = await fetch("api/states");
+        return resp.json();
     }
 
     function log(msg, cls) {
@@ -227,8 +211,8 @@
     }
 
     async function checkSavedState() {
-        const state = await dbGet(currentProfile).catch(() => null);
-        document.getElementById("btn-restore").disabled = !state;
+        const states = await stateList().catch(() => ({}));
+        document.getElementById("btn-restore").disabled = !states[currentProfile];
     }
 
     function startVM() {
@@ -325,11 +309,9 @@
         setStatus("Saving...");
         try {
             const state = await emulator.save_state();
-            await dbPut(currentProfile, state);
-            savedState = state;
-            const mb = (state.byteLength / 1024 / 1024).toFixed(1);
-            log("State saved to IndexedDB: " + mb + " MB", "ok");
-            setStatus("Saved (" + mb + " MB)");
+            const result = await stateSave(currentProfile, state);
+            log("State saved to server: " + result.raw_mb + " MB → " + result.compressed_mb + " MB compressed", "ok");
+            setStatus("Saved (" + result.compressed_mb + " MB)");
             document.getElementById("btn-restore").disabled = false;
         } catch (e) {
             log("Save failed: " + e.message, "err");
@@ -339,15 +321,15 @@
 
     async function restoreState() {
         try {
-            const state = savedState || await dbGet(currentProfile);
-            if (!state) { log("No saved state", "err"); return; }
+            log("Loading state from server...", "info");
+            setStatus("Loading...");
+            const state = await stateLoad(currentProfile);
+            if (!state) { log("No saved state for " + currentProfile, "err"); setStatus("No state"); return; }
             if (!emulator) startVM();
-            // Wait for emulator to initialize before restoring
             await new Promise(r => setTimeout(r, 200));
             log("Restoring state...", "info");
             await emulator.restore_state(state);
-            savedState = state;
-            log("State restored", "ok");
+            log("State restored (" + (state.byteLength / 1024 / 1024).toFixed(1) + " MB)", "ok");
             setStatus(currentProfile + " — Restored");
         } catch (e) {
             log("Restore failed: " + e.message, "err");
