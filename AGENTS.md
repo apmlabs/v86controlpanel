@@ -27,13 +27,13 @@
 ---
 
 ## Current Status
-Last updated: 2026-02-23T11:46:00Z
+Last updated: 2026-02-23T18:30:00Z
 
 ### Project Status
-- **Phase**: Full control panel with 7 OS profiles + Chromium browser
-- **Last Action**: Fixed Doom HD image (MBR partition table with CHS geometry), server-side state persistence
-- **Current Blocker**: Doom HD may still have CHS geometry issues (testing)
-- **Target**: Working v86 control panel with Doom + SSH + project management
+- **Phase**: Full control panel with 7 OS profiles + Chromium browser + DOOM WORKING
+- **Last Action**: Fixed Doom — geometry, BPB, preloading all resolved
+- **Current Blocker**: None — Ctrl key (shoot) intercepted by browser in Doom
+- **Target**: SSH project manager, multi-VM dashboard
 
 ### Implementation Tracks
 | Track | Component | Status | Next Action |
@@ -42,7 +42,7 @@ Last updated: 2026-02-23T11:46:00Z
 | B | v86 Integration | ✅ COMPLETE | v86 npm package, multiple OS profiles |
 | C | Control Panel UI | ✅ COMPLETE | 7 profiles, start/stop/save/restore/fullscreen |
 | D | nginx + Landing Page | ✅ COMPLETE | /v86/ route, /novnc/ route, Control Center at / |
-| E | Doom on FreeDOS | 🔧 TESTING | Boot floppy + MBR-partitioned HD, CHS sector 63 |
+| E | Doom on FreeDOS | ✅ COMPLETE | Boots, runs, plays — Ctrl (shoot) intercepted by browser |
 | F | Serial Terminal | ✅ COMPLETE | xterm.js via v86 serial_container_xtermjs for Alpine |
 | G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
 | H | State Persistence | ✅ COMPLETE | Server-side Flask API, gzip compressed, cross-browser |
@@ -174,11 +174,14 @@ v86controlpanel/
 
 ## 🎮 FEATURE PLANS
 
-### 1. Doom on FreeDOS
+### 1. Doom on FreeDOS ✅ WORKING
 - Boot FreeDOS floppy, HD as C: with DOOM.EXE + DOOM1.WAD
-- AUTOEXEC.BAT auto-launches Doom
+- AUTOEXEC.BAT: `C:\ → CD DOOM → DOOM.EXE -nomusic -nosfx`
+- **HD image geometry must match v86 hardcoded 16 heads / 63 SPT**
+- **BPB must have matching geometry + hidden sectors = partition offset**
+- **Remove `async: true` from hda config** — preload image for fast disk I/O
 - Save state after Doom loads for instant restart
-- **HD image must have MBR partition table with CHS-aligned partition (sector 63)**
+- Only issue: Ctrl (shoot) intercepted by browser — use mouse click or fullscreen
 
 ### 2. Linux Terminal (Alpine)
 - Boot via bzimage+initrd (not ISO — avoids ISOLINUX hang)
@@ -208,6 +211,10 @@ v86controlpanel/
 - Alpine: boot via bzimage+initrd, NOT ISO (ISOLINUX hangs in v86)
 - **FreeDOS HD images MUST have MBR partition table** — raw FAT16 without partition table = "Invalid drive C:"
 - **Partition must start at sector 63** (classic CHS) — sector 2048 (modern) causes "Error reading from drive C:"
+- **v86 ide.js hardcodes geometry: 16 heads, 63 sectors/track** — image size must be exact multiple of cylinder size (16×63×512 = 516096 bytes)
+- **MBR partition CHS values must match v86 geometry** — sfdisk writes wrong CHS with its own geometry assumption
+- **FAT16 BPB must match v86 geometry** — use `mkfs.fat -h 63 -g 16/63` to set heads=16, SPT=63, hidden=63
+- **Remove `async: true` for game disk images** — async = HTTP fetch per sector read = extremely slow; preload = instant RAM reads
 - **Duplicate `const` declarations in same function scope** = entire `<script>` block fails silently
 - Chromium in v86 is impossible (32-bit, single-core, too slow) — use noVNC + real Chromium instead
 - Flask replaces python http.server when you need API endpoints
@@ -248,13 +255,29 @@ Ports: 5900 (VNC), 6080 (websockify)
 
 ### Building Doom HD Image
 ```bash
-# Must use sector 63 start for FreeDOS CHS compatibility
-dd if=/dev/zero of=doom_hd.img bs=512 count=32768
-echo "63,32705,06,*" | sfdisk doom_hd.img
-LOOP=$(sudo losetup --find --show --offset 32256 --sizelimit $((32705*512)) doom_hd.img)
-sudo mkfs.fat -F 16 $LOOP
+# v86 hardcodes 16 heads, 63 SPT — image must match exactly
+HEADS=16; SPT=63; CYLS=32
+TOTAL=$((CYLS * HEADS * SPT))  # 32256 sectors = 16515072 bytes
+dd if=/dev/zero of=doom_hd.img bs=512 count=$TOTAL
+
+# Write MBR with python (sfdisk uses wrong geometry)
+python3 -c "
+import struct
+with open('doom_hd.img','r+b') as f:
+    h,sc,c = 1, 0x01, 0x00  # start CHS 0/1/1
+    eh,esc,ec = 15, 0x3f, 0x1f  # end CHS 31/15/63
+    f.seek(0x1BE)
+    f.write(struct.pack('<BBBBBBBBII',0x80,h,sc,c,0x06,eh,esc,ec,63,32193))
+    f.seek(0x1FE); f.write(b'\x55\xAA')
+"
+
+# Format with matching BPB geometry
+LOOP=$(sudo losetup --find --show --offset 32256 --sizelimit $((32193*512)) doom_hd.img)
+sudo mkfs.fat -F 16 -h 63 -g 16/63 -n DOOM $LOOP
 sudo mount $LOOP /mnt/doom
-# Copy KERNEL.SYS, COMMAND.COM, DOOM/DOOM.EXE, DOOM/DOOM1.WAD, AUTOEXEC.BAT
+# Copy KERNEL.SYS, COMMAND.COM from FreeDOS floppy
+# Copy DOOM/DOOM.EXE, DOOM/DOOM1.WAD
+# Create AUTOEXEC.BAT: C:\ / CD DOOM / DOOM.EXE -nomusic -nosfx
 ```
 
 ### Image Sources

@@ -1,8 +1,8 @@
 # Amazon Q - v86 Control Panel Context
 
-**Last Updated**: 2026-02-23T11:46:00Z
+**Last Updated**: 2026-02-23T18:30:00Z
 **Working Directory**: `/home/ubuntu/mcpprojects/v86controlpanel/`
-**Status**: ✅ Full control panel with 7 profiles + Chromium + server-side state
+**Status**: ✅ Full control panel with 7 profiles + Chromium + server-side state + DOOM WORKING
 
 ## Project: v86 Control Panel
 
@@ -12,7 +12,7 @@ Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, 
 
 ### What Works
 - ✅ 7 OS profiles: Doom, FreeDOS, Alpine, DSL, TinyCore, KolibriOS, Chromium
-- ✅ Doom on FreeDOS: boot floppy + MBR-partitioned HD (sector 63 CHS)
+- ✅ Doom on FreeDOS: boot floppy + MBR-partitioned HD (sector 63 CHS), preloaded, plays!
 - ✅ Alpine Linux: bzimage+initrd boot, xterm.js serial terminal
 - ✅ DSL + TinyCore: graphical X11 desktops with fetch networking
 - ✅ KolibriOS: native GUI with built-in browser
@@ -22,9 +22,8 @@ Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, 
 - ✅ nginx: /v86/ + /novnc/ routes with WebSocket upgrade
 
 ### What's Next
-1. Verify Doom boots and runs (CHS geometry fix testing)
-2. SSH project manager from Alpine VM
-3. Multi-VM dashboard (tabs)
+1. SSH project manager from Alpine VM
+2. Multi-VM dashboard (tabs)
 
 ---
 
@@ -49,6 +48,8 @@ Major expansion: 7 OS profiles, Chromium via noVNC, server-side state persistenc
 - Alpine ISOLINUX hang: Switched to bzimage+initrd
 - Doom Invalid drive C: No partition table - rebuilt with MBR
 - Doom Error reading from drive C: Sector 2048 start - rebuilt with sector 63
+- Doom "suspect partition" + read errors: MBR CHS and BPB geometry didn't match v86's hardcoded 16H/63S
+- Doom extremely slow init: async disk = HTTP per sector read; preload fixes it
 - Flask crash: str_replace merged two lines - fixed newline
 
 ---
