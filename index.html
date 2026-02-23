@@ -74,6 +74,18 @@
                 <div class="label">🐧 Linux</div>
                 <div class="desc">Alpine Linux terminal</div>
             </div>
+            <div class="profile-btn" onclick="selectProfile('dsl')" id="prof-dsl">
+                <div class="label">🖼️ DSL</div>
+                <div class="desc">Damn Small Linux (X11)</div>
+            </div>
+            <div class="profile-btn" onclick="selectProfile('tinycore')" id="prof-tinycore">
+                <div class="label">🐧 TinyCore</div>
+                <div class="desc">Tiny Core Linux (X11)</div>
+            </div>
+            <div class="profile-btn" onclick="selectProfile('kolibri')" id="prof-kolibri">
+                <div class="label">💎 KolibriOS</div>
+                <div class="desc">Tiny graphical OS</div>
+            </div>
         </div>
         <div id="content">
             <div id="screen-area">
@@ -112,6 +124,17 @@
             memory_size: 128 * 1024 * 1024,
             net_device: { type: "virtio", relay_url: "fetch" },
             useTerminal: true,
+        },
+        dsl: {
+            cdrom: { url: "images/dsl.iso", size: 52824064, async: false },
+            memory_size: 256 * 1024 * 1024,
+        },
+        tinycore: {
+            cdrom: { url: "images/tinycore.iso", size: 25165824, async: false },
+            memory_size: 256 * 1024 * 1024,
+        },
+        kolibri: {
+            fda: { url: "images/kolibri.img", size: 1474560 },
         },
     };
 
