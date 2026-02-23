@@ -147,7 +147,8 @@ fetch backend special: `http://<port>.external` → localhost:<port> on host.
 From v86 demos (known working):
 - **FreeDOS** — perfect for Doom, tiny, instant boot
 - **Alpine Linux** — minimal Linux, good for SSH/terminal
-- **Buildroot Linux** — custom minimal images (we use this: linux.iso 6.3MB)
+- **Buildroot Linux** — custom minimal images (we use this: linux.iso 6.3MB, busybox only, no curl/apk)
+- **Alpine Linux** — has `apk` package manager, can install curl/ssh/python (we use: alpine.iso 46MB)
 - **Arch Linux 32** — fuller Linux experience
 - **Windows 98/95** — retro computing
 - **KolibriOS** — tiny graphical OS
@@ -181,8 +182,8 @@ v86controlpanel/
 └── images/                # OS disk images (gitignored, downloaded)
     ├── freedos722.img     # 720KB FreeDOS floppy
     ├── doom.img           # 16MB FreeDOS HD with DOOM.EXE + DOOM1.WAD
-    └── linux.iso          # 6.3MB Buildroot Linux
-```
+    ├── linux.iso          # 6.3MB Buildroot Linux (busybox only)
+    └── alpine.iso         # 46MB Alpine Linux (apk, curl, ssh, python)```
 
 ---
 
@@ -199,6 +200,11 @@ v86controlpanel/
 - xterm.js terminal in control panel
 - Package manager (apk), basic tools
 - 9p filesystem to share files with browser
+- **Alpine boot instructions**: login as `root` (no password), then:
+  - `setup-interfaces -a` — configure networking (DHCP via fetch backend)
+  - `apk add curl` — install curl
+  - `curl https://example.com` — test it
+  - Can also install: `apk add openssh python3 git`
 
 ### 3. SSH Project Manager
 - From Alpine VM, SSH to dev server

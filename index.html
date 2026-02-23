@@ -75,7 +75,7 @@
             </div>
             <div class="profile-btn" onclick="selectProfile('linux')" id="prof-linux">
                 <div class="label">🐧 Linux</div>
-                <div class="desc">Buildroot + networking</div>
+                <div class="desc">Alpine Linux + curl</div>
             </div>
         </div>
         <div id="content">
@@ -109,7 +109,8 @@
             fda: { url: "images/freedos722.img" },
         },
         linux: {
-            cdrom: { url: "images/linux.iso" },
+            cdrom: { url: "images/alpine.iso" },
+            memory_size: 128 * 1024 * 1024,
             net_device: { type: "virtio", relay_url: "fetch" },
         },
     };
