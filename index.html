@@ -31,12 +31,16 @@
         .profile-btn.active { border-color: #0ff; background: #0a3d62; }
         .profile-btn .label { font-weight: bold; }
         .profile-btn .desc { font-size: 11px; color: #888; margin-top: 2px; }
-        #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
         #screen-area { flex: 1; display: flex; align-items: center; justify-content: center; }
         #screen_container { background: #000; border: 2px solid #333; overflow: hidden; }
         #screen_container div { white-space: pre; font: 14px monospace; line-height: 14px; }
         #screen_container canvas { display: none; }
-        #terminal-wrap { display: none; flex: 1; background: #000; border: 2px solid #333; margin: 8px; overflow: hidden; }
+        #terminal-wrap { display: none; flex: 1; background: #000; border: 2px solid #333; margin: 8px; overflow: hidden; width: calc(100% - 16px); }
+        #terminal-wrap .xterm { height: 100%; width: 100% !important; }
+        #terminal-wrap .xterm-screen { width: 100% !important; }
+        #terminal-wrap .xterm-viewport { width: 100% !important; overflow-y: auto !important; scrollbar-width: none; }
+        #terminal-wrap .xterm-viewport::-webkit-scrollbar { display: none; }
         #log-area {
             height: 100px; background: #0d0d1a; border-top: 1px solid #333;
             overflow-y: auto; padding: 8px 12px; font: 12px monospace; color: #666;
@@ -62,29 +66,25 @@
     </div>
     <div id="main">
         <div id="sidebar">
-            <div class="profile-btn" onclick="selectProfile('doom')" id="prof-doom">
-                <div class="label">💀 Doom</div>
-                <div class="desc">Doom on FreeDOS</div>
-            </div>
-            <div class="profile-btn active" onclick="selectProfile('freedos')" id="prof-freedos">
-                <div class="label">🖥️ FreeDOS</div>
-                <div class="desc">DOS environment</div>
-            </div>
-            <div class="profile-btn" onclick="selectProfile('linux')" id="prof-linux">
-                <div class="label">🐧 Linux</div>
-                <div class="desc">Alpine Linux terminal</div>
-            </div>
-            <div class="profile-btn" onclick="selectProfile('dsl')" id="prof-dsl">
-                <div class="label">🖼️ DSL</div>
-                <div class="desc">Damn Small Linux (X11)</div>
+            <div class="profile-btn active" onclick="selectProfile('alpine')" id="prof-alpine">
+                <div class="label">🐧 Alpine 3.23</div>
+                <div class="desc">Linux terminal</div>
             </div>
             <div class="profile-btn" onclick="selectProfile('tinycore')" id="prof-tinycore">
-                <div class="label">🐧 TinyCore</div>
-                <div class="desc">Tiny Core Linux (X11)</div>
+                <div class="label">🐧 TinyCore 17</div>
+                <div class="desc">Lightweight GUI Linux</div>
             </div>
             <div class="profile-btn" onclick="selectProfile('kolibri')" id="prof-kolibri">
                 <div class="label">💎 KolibriOS</div>
-                <div class="desc">Tiny graphical OS</div>
+                <div class="desc">ASM OS, instant boot</div>
+            </div>
+            <div class="profile-btn" onclick="selectProfile('jsdos')" id="prof-jsdos">
+                <div class="label">🎮 js-dos</div>
+                <div class="desc">DOS games (C&C, Doom…)</div>
+            </div>
+            <div class="profile-btn" onclick="selectProfile('9front')" id="prof-9front">
+                <div class="label">🔷 9front</div>
+                <div class="desc">Plan 9 fork</div>
             </div>
             <div class="profile-btn" onclick="selectProfile('chromium')" id="prof-chromium">
                 <div class="label">🌐 Chromium</div>
@@ -102,45 +102,62 @@
             <div id="vnc-wrap" style="display:none; flex:1; margin:4px;">
                 <iframe id="vnc-iframe" style="width:100%; height:100%; border:2px solid #333;"></iframe>
             </div>
+            <div id="jsdos-wrap" style="display:none; flex:1; margin:4px; flex-direction:column;">
+                <div id="jsdos-picker" style="padding:20px; text-align:center;">
+                    <h3 style="color:#0ff; margin-bottom:12px;">🎮 Pick a DOS game</h3>
+                    <select id="jsdos-game" style="padding:8px; font-size:14px; background:#1a1a2e; color:#e0e0e0; border:1px solid #0ff; border-radius:4px; margin-bottom:12px;">
+                        <option value="jsdos/doom.jsdos">Doom</option>
+                        <option value="jsdos/doom2.jsdos">Doom II</option>
+                        <option value="jsdos/cnc.jsdos">Command & Conquer</option>
+                        <option value="jsdos/prince.jsdos">Prince of Persia</option>
+                        <option value="jsdos/warcraft.jsdos">WarCraft</option>
+                        <option value="jsdos/lemmings.jsdos">Lemmings</option>
+                        <option value="jsdos/heretic.jsdos">Heretic</option>
+                        <option value="jsdos/gta.jsdos">GTA</option>
+                        <option value="jsdos/nfs.jsdos">Need for Speed</option>
+                        <option value="jsdos/digger.jsdos">Digger</option>
+                    </select>
+                    <br>
+                    <button onclick="launchJsDos()" style="padding:8px 24px; background:#0ff; color:#000; border:none; border-radius:4px; cursor:pointer; font-size:14px;">▶ Launch</button>
+                    <p style="color:#666; margin-top:12px; font-size:12px;">Games powered by <a href="https://js-dos.com" target="_blank" style="color:#58a6ff;">js-dos</a></p>
+                </div>
+                <div id="jsdos-container" style="flex:1; width:100%;"></div>
+            </div>
             <div id="log-area"></div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <link rel="stylesheet" href="https://v8.js-dos.com/latest/js-dos.css">
+    <script src="https://v8.js-dos.com/latest/js-dos.js"></script>
     <script src="node_modules/v86/build/libv86.js"></script>
     <script>
     let emulator = null;
-    let currentProfile = "freedos";
+    let currentProfile = "alpine";
 
     const profiles = {
-        doom: {
-            fda: { url: "images/doom_boot.img" },
-            hda: { url: "images/doom.img", size: 16515072 },
-            memory_size: 32 * 1024 * 1024,
-        },
-        freedos: {
-            fda: { url: "images/freedos722.img" },
-        },
-        linux: {
+        alpine: {
             bzimage: { url: "images/alpine-bzimage" },
             initrd: { url: "images/alpine-initrd" },
+            cdrom: { url: "images/alpine.iso" },
             cmdline: "console=ttyS0 modules=loop,squashfs,sd-mod,usb-storage quiet",
             memory_size: 128 * 1024 * 1024,
             net_device: { type: "virtio", relay_url: "fetch" },
             useTerminal: true,
         },
-        dsl: {
-            cdrom: { url: "images/dsl.iso", size: 52824064, async: false },
-            memory_size: 256 * 1024 * 1024,
-            net_device: { type: "virtio", relay_url: "fetch" },
-        },
         tinycore: {
-            cdrom: { url: "images/tinycore.iso", size: 25165824, async: false },
+            cdrom: { url: "images/tinycore.iso" },
             memory_size: 256 * 1024 * 1024,
             net_device: { type: "virtio", relay_url: "fetch" },
         },
         kolibri: {
             fda: { url: "images/kolibri.img", size: 1474560 },
+        },
+        jsdos: { jsdos: true },
+        "9front": {
+            hda: { url: "images/9front.iso", size: 481742848, async: true },
+            memory_size: 128 * 1024 * 1024,
+            acpi: true,
         },
         chromium: { noVNC: true },
     };
@@ -192,17 +209,30 @@
         document.getElementById("terminal-wrap").style.display = show ? "flex" : "none";
         document.getElementById("screen-area").style.display = show ? "none" : "flex";
         document.getElementById("vnc-wrap").style.display = "none";
+        document.getElementById("jsdos-wrap").style.display = "none";
     }
 
     function showVNC(show) {
         document.getElementById("vnc-wrap").style.display = show ? "flex" : "none";
         document.getElementById("screen-area").style.display = show ? "none" : "flex";
         document.getElementById("terminal-wrap").style.display = "none";
+        document.getElementById("jsdos-wrap").style.display = "none";
+    }
+
+    function showJsDos(show) {
+        document.getElementById("jsdos-wrap").style.display = show ? "flex" : "none";
+        document.getElementById("screen-area").style.display = show ? "none" : "flex";
+        document.getElementById("terminal-wrap").style.display = "none";
+        document.getElementById("vnc-wrap").style.display = "none";
+        if (show) {
+            document.getElementById("jsdos-picker").style.display = "block";
+            document.getElementById("jsdos-container").innerHTML = "";
+        }
     }
 
     function selectProfile(name) {
         if (name === currentProfile) return;
-        if (emulator || profiles[currentProfile]?.noVNC) stopVM();
+        if (emulator || profiles[currentProfile]?.noVNC || profiles[currentProfile]?.jsdos) stopVM();
         currentProfile = name;
         document.querySelectorAll(".profile-btn").forEach(b => b.classList.remove("active"));
         document.getElementById("prof-" + name).classList.add("active");
@@ -215,8 +245,32 @@
         document.getElementById("btn-restore").disabled = !states[currentProfile];
     }
 
+    let jsdosInstance = null;
+
+    function launchJsDos() {
+        const url = document.getElementById("jsdos-game").value;
+        document.getElementById("jsdos-picker").style.display = "none";
+        const container = document.getElementById("jsdos-container");
+        container.innerHTML = "";
+        log("Launching DOS game...", "info");
+        setStatus("js-dos — Loading...");
+        Dos(container, { url: url });
+        jsdosInstance = container;
+        log("DOS game launched", "ok");
+        setStatus("js-dos — Running");
+    }
+
     function startVM() {
         const profile = profiles[currentProfile];
+
+        // js-dos
+        if (profile.jsdos) {
+            showJsDos(true);
+            setButtons(true);
+            log("js-dos ready — pick a game", "info");
+            setStatus("js-dos — Pick a game");
+            return;
+        }
 
         // Chromium via noVNC
         if (profile.noVNC) {
@@ -252,7 +306,7 @@
             opts.screen_container = document.getElementById("screen_container");
         }
 
-        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","cmdline","net_device"]) {
+        for (const k of ["fda","hda","hdb","cdrom","bzimage","initrd","cmdline","net_device","acpi"]) {
             if (profile[k] !== undefined) opts[k] = profile[k];
         }
 
@@ -269,6 +323,13 @@
         emulator.add_listener("emulator-ready", () => {
             log(currentProfile + " ready", "ok");
             setStatus(currentProfile + " — Running");
+            // For graphical profiles, click screen to lock mouse
+            if (!useTerminal) {
+                const screen = document.getElementById("screen_container");
+                screen.title = "Click to capture mouse (Esc to release)";
+                screen.style.cursor = "pointer";
+                screen.onclick = () => { emulator.lock_mouse(); };
+            }
         });
         emulator.add_listener("download-error", (e) => log("Download error: " + JSON.stringify(e), "err"));
         emulator.add_listener("download-progress", (e) => {
@@ -277,6 +338,16 @@
     }
 
     function stopVM() {
+        // js-dos
+        if (profiles[currentProfile]?.jsdos) {
+            document.getElementById("jsdos-container").innerHTML = "";
+            jsdosInstance = null;
+            showJsDos(false);
+            setStatus("Stopped");
+            setButtons(false);
+            log("js-dos stopped", "info");
+            return;
+        }
         // noVNC
         if (profiles[currentProfile]?.noVNC) {
             document.getElementById("vnc-iframe").src = "";

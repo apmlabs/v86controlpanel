@@ -2,7 +2,7 @@
 
 ## 🎯 PROJECT GOAL
 
-**Browser-based x86 VM control panel** — boot OS images, run Doom, manage projects via SSH, all from a single web UI. Mix of client-side v86 emulation and server-side Chromium via noVNC.
+**Browser-based x86 VM control panel** — boot OS images, play DOS games, manage projects via SSH, all from a single web UI. Mix of client-side v86 emulation, js-dos for DOS games, and server-side Chromium via noVNC.
 
 ---
 
@@ -23,16 +23,18 @@
 4. **Read files before editing** — always read the full file first, plan changes, then write
 5. **Step back and plan** before making changes — don't rush into edits
 6. **Push to GitHub** after updating context files
+7. **Never use curl -s (silent)** — always show download progress
+8. **Never pipe and wait** — show output to user
 
 ---
 
 ## Current Status
-Last updated: 2026-02-23T18:30:00Z
+Last updated: 2026-02-25T18:38:00Z
 
 ### Project Status
-- **Phase**: Full control panel with 7 OS profiles + Chromium browser + DOOM WORKING
-- **Last Action**: Fixed Doom — geometry, BPB, preloading all resolved
-- **Current Blocker**: None — Ctrl key (shoot) intercepted by browser in Doom
+- **Phase**: Modernized 6-profile panel + js-dos games + Chromium
+- **Last Action**: Full profile modernization — Alpine 3.23, TinyCore 17, 9front, js-dos with 10 games
+- **Current Blocker**: None
 - **Target**: SSH project manager, multi-VM dashboard
 
 ### Implementation Tracks
@@ -40,15 +42,16 @@ Last updated: 2026-02-23T18:30:00Z
 |-------|-----------|--------|-------------|
 | A | Repo & Context Files | ✅ COMPLETE | AGENTS.md, AmazonQ.md, README.md |
 | B | v86 Integration | ✅ COMPLETE | v86 npm package, multiple OS profiles |
-| C | Control Panel UI | ✅ COMPLETE | 7 profiles, start/stop/save/restore/fullscreen |
+| C | Control Panel UI | ✅ COMPLETE | 6 profiles, start/stop/save/restore/fullscreen |
 | D | nginx + Landing Page | ✅ COMPLETE | /v86/ route, /novnc/ route, Control Center at / |
-| E | Doom on FreeDOS | ✅ COMPLETE | Boots, runs, plays — Ctrl (shoot) intercepted by browser |
+| E | js-dos Games | ✅ COMPLETE | 10 DOS games, locally hosted bundles |
 | F | Serial Terminal | ✅ COMPLETE | xterm.js via v86 serial_container_xtermjs for Alpine |
 | G | Project Manager | 🔲 TODO | SSH into dev server, manage projects |
 | H | State Persistence | ✅ COMPLETE | Server-side Flask API, gzip compressed, cross-browser |
-| I | Networking | ✅ COMPLETE | fetch backend for Alpine, DSL, TinyCore |
+| I | Networking | ✅ COMPLETE | fetch backend for Alpine, TinyCore |
 | J | Chromium noVNC | ✅ COMPLETE | Real Chromium via Xvfb + x11vnc + websockify + noVNC |
-| K | Graphical OSes | ✅ COMPLETE | DSL, TinyCore, KolibriOS profiles added |
+| K | OS Modernization | ✅ COMPLETE | Alpine 3.23, TinyCore 17, 9front Jan 2026 |
+| L | Mouse Lock | ✅ COMPLETE | Click VGA screen to lock mouse for graphical OSes |
 
 ### Infrastructure
 - **Public IP**: 54.80.204.92
@@ -72,75 +75,50 @@ Last updated: 2026-02-23T18:30:00Z
 - **Emulated hardware**: CPU (~Pentium 4 + SSE3), FPU, VGA/SVGA, PS/2 keyboard/mouse, PIT, PIC, APIC, RTC, PCI, IDE, floppy, NE2000 NIC, virtio (fs/net/balloon), SoundBlaster 16
 - **Limitations**: 32-bit x86 only, no 64-bit, no multicore, emulation speed (not native)
 
+### js-dos (DOS Games)
+- **Repo**: https://github.com/caiiiycuk/js-dos (MIT license)
+- **What it does**: DOSBox compiled to WebAssembly, runs DOS games in browser
+- **CDN**: `https://v8.js-dos.com/latest/js-dos.js` + `js-dos.css`
+- **API**: `Dos(element, { url: "path/to/game.jsdos" })`
+- **Bundles**: .jsdos files = ZIP archives containing game files + dosbox.conf
+- **Bundle sources**: cdn.dos.zone/custom/dos/ (1900+ games), v8.js-dos.com/bundles/
+- **CORS issue**: cdn.dos.zone blocks cross-origin requests — must host bundles locally
+- **Architecture**: DOSBox→WASM in Web Worker, renders to canvas, sound via Web Audio API
+
 ### Chromium noVNC Stack
 ```
 User browser → nginx (/novnc/) → websockify (ws→vnc) → x11vnc → Xvfb :99 → Chromium 145
 ```
-- **Xvfb**: Virtual framebuffer at 1280x720x24
-- **x11vnc**: VNC server on localhost:5900
-- **websockify**: WebSocket-to-VNC bridge on port 6080, serves noVNC static files
-- **Chromium**: Real browser with full modern JS support
-- **systemd**: `chromium-vnc.service` with respawn loop for Chromium
 
 ### Server (server.py — Flask)
-- Serves static files (index.html, images, bios, node_modules)
-- State API:
-  - `GET /api/states` — list all saved states with sizes
-  - `GET /api/states/<profile>` — download state (gzip compressed)
-  - `PUT /api/states/<profile>` — upload state (raw → gzip on server)
-  - `DELETE /api/states/<profile>` — delete state
+- Serves static files (index.html, images, jsdos, bios, node_modules)
+- State API: GET/PUT/DELETE /api/states/<profile>
 - States stored in `states/` directory, gzip compressed
 - Max upload: 500MB (nginx `client_max_body_size 500m`)
 
-### v86 API (key methods)
-```javascript
-const emulator = new V86({
-    wasm_path: "build/v86.wasm",
-    bios: { url: "bios/seabios.bin" },
-    vga_bios: { url: "bios/vgabios.bin" },
-    screen_container: document.getElementById("screen"),
-    memory_size: 64 * 1024 * 1024,
-    vga_memory_size: 8 * 1024 * 1024,
-    autostart: true,
-    // Disk options:
-    cdrom: { url: "images/linux.iso" },
-    hda: { url: "images/disk.img", async: true, size: SIZE_BYTES },
-    fda: { url: "images/floppy.img" },
-    bzimage: { url: "images/bzImage" },
-    initrd: { url: "images/rootfs.cpio" },
-    cmdline: "console=ttyS0 quiet",
-    // Serial console (v86 creates xterm.js internally):
-    serial_container_xtermjs: document.getElementById("terminal-el"),
-    // Networking:
-    net_device: { type: "virtio", relay_url: "fetch" },
-});
+### OS Profiles (Current — 6 profiles)
+| Profile | Tech | Image | Size | Display | Notes |
+|---------|------|-------|------|---------|-------|
+| 🐧 Alpine 3.23 | v86 | bzimage+initrd+iso | 66MB | xterm.js serial | Kernel 6.18.7, login root (no pw) |
+| 🐧 TinyCore 17 | v86 | tinycore.iso | 25MB | VGA | Kernel 6.18, GUI Linux, fetch net |
+| 💎 KolibriOS | v86 | kolibri.img | 1.5MB | VGA | ASM OS, instant boot, click to lock mouse |
+| 🎮 js-dos | DOSBox→WASM | .jsdos bundles | varies | js-dos player | 10 games, locally hosted |
+| 🔷 9front | v86 | 9front.iso | 460MB | VGA | Plan 9 fork, Jan 2026, async load, ACPI |
+| 🌐 Chromium | noVNC | N/A | N/A | noVNC iframe | Real Chromium 145 on server |
 
-// Control: run(), stop(), restart(), destroy()
-// State: save_state() → ArrayBuffer, restore_state(buf)
-// Serial: serial0_send("cmd\n"), add_listener("serial0-output-byte", fn)
-// Screen: screen_go_fullscreen()
-```
-
-### OS Profiles
-| Profile | Image | Size | Display | Networking | Notes |
-|---------|-------|------|---------|------------|-------|
-| 💀 Doom | doom_boot.img + doom.img | 720KB + 16MB | VGA | None | FreeDOS boot floppy + HD |
-| 🖥️ FreeDOS | freedos722.img | 720KB | VGA | None | Plain DOS |
-| 🐧 Alpine | alpine-bzimage + alpine-initrd | 13MB | xterm.js serial | fetch | `console=ttyS0`, login as root |
-| 🖼️ DSL | dsl.iso | 50MB | VGA | fetch | X11 + Fluxbox, Dillo/Firefox |
-| 🐧 TinyCore | tinycore.iso | 24MB | VGA | fetch | X11 + FLWM |
-| 💎 KolibriOS | kolibri.img | 1.4MB | VGA | None | Native GUI, built-in browser |
-| 🌐 Chromium | noVNC iframe | N/A | noVNC | Native | Real Chromium 145 on server |
-
-### Networking Backends
-| Backend | URL | What it does | Proxy needed? |
-|---------|-----|-------------|---------------|
-| **fetch** | `fetch` | HTTP via browser fetch() API | No |
-| **inbrowser** | `inbrowser` | VM-to-VM in same browser | No |
-| **wsproxy** | `wss://host/` | Raw ethernet over WebSocket | Yes |
-| **wisp** | `wisps://host/` | TCP/UDP over WISP protocol | Yes |
-
-fetch backend = HTTP only (wget/curl work, SSH/ping don't).
+### js-dos Game Bundles (locally hosted in jsdos/)
+| Game | File | Size |
+|------|------|------|
+| Doom | doom.jsdos | 5.4MB |
+| Doom II | doom2.jsdos | 6.7MB |
+| Command & Conquer | cnc.jsdos | 68MB |
+| Prince of Persia | prince.jsdos | 362KB |
+| WarCraft | warcraft.jsdos | 5.3MB |
+| Lemmings | lemmings.jsdos | 2.1MB |
+| Heretic | heretic.jsdos | 11MB |
+| GTA | gta.jsdos | 31MB |
+| Need for Speed | nfs.jsdos | 46MB |
+| Digger | digger.jsdos | 27KB |
 
 ### Project Structure
 ```
@@ -149,54 +127,33 @@ v86controlpanel/
 ├── AmazonQ.md             # Session history (committed)
 ├── README.md              # User docs
 ├── .gitignore
-├── index.html             # Main control panel UI (7 profiles)
+├── index.html             # Main control panel UI (6 profiles)
 ├── server.py              # Flask server (static files + state API)
 ├── chromium-vnc.sh        # Launcher for Chromium noVNC stack
 ├── package.json           # npm deps (v86)
-├── states/                # Saved VM states (gitignored, server-side)
+├── states/                # Saved VM states (gitignored)
 ├── bios/                  # SeaBIOS + VGA BIOS (gitignored)
-│   ├── seabios.bin        # 128KB
-│   └── vgabios.bin        # 36KB
+│   ├── seabios.bin
+│   └── vgabios.bin
+├── jsdos/                 # DOS game bundles (gitignored)
+│   ├── doom.jsdos
+│   ├── doom2.jsdos
+│   ├── cnc.jsdos
+│   ├── prince.jsdos
+│   ├── warcraft.jsdos
+│   ├── lemmings.jsdos
+│   ├── heretic.jsdos
+│   ├── gta.jsdos
+│   ├── nfs.jsdos
+│   └── digger.jsdos
 └── images/                # OS disk images (gitignored)
-    ├── freedos722.img     # 720KB FreeDOS floppy
-    ├── doom.img           # 16MB FreeDOS HD (MBR + FAT16, sector 63 start)
-    ├── doom_boot.img      # 720KB FreeDOS boot floppy (AUTOEXEC→C:\DOOM\DOOM.EXE)
-    ├── linux.iso          # 6.3MB Buildroot Linux
-    ├── alpine.iso         # 46MB Alpine Linux ISO (source)
-    ├── alpine-bzimage     # 6.3MB Alpine kernel (from ISO)
-    ├── alpine-initrd      # 6.7MB Alpine initramfs (from ISO)
-    ├── dsl.iso            # 50MB Damn Small Linux
-    ├── tinycore.iso       # 24MB Tiny Core Linux
-    └── kolibri.img        # 1.4MB KolibriOS floppy
+    ├── alpine.iso         # 51MB Alpine 3.23 virt ISO (boot media for modloop)
+    ├── alpine-bzimage     # 7.6MB Alpine 3.23 kernel (6.18.7-0-virt)
+    ├── alpine-initrd      # 7.4MB Alpine 3.23 initramfs
+    ├── tinycore.iso       # 25MB TinyCore 17 (kernel 6.18)
+    ├── kolibri.img        # 1.5MB KolibriOS floppy
+    └── 9front.iso         # 460MB 9front Jan 2026 release (386)
 ```
-
----
-
-## 🎮 FEATURE PLANS
-
-### 1. Doom on FreeDOS ✅ WORKING
-- Boot FreeDOS floppy, HD as C: with DOOM.EXE + DOOM1.WAD
-- AUTOEXEC.BAT: `C:\ → CD DOOM → DOOM.EXE -nomusic -nosfx`
-- **HD image geometry must match v86 hardcoded 16 heads / 63 SPT**
-- **BPB must have matching geometry + hidden sectors = partition offset**
-- **Remove `async: true` from hda config** — preload image for fast disk I/O
-- Save state after Doom loads for instant restart
-- Only issue: Ctrl (shoot) intercepted by browser — use mouse click or fullscreen
-
-### 2. Linux Terminal (Alpine)
-- Boot via bzimage+initrd (not ISO — avoids ISOLINUX hang)
-- `console=ttyS0` for serial output to xterm.js
-- Login as `root` (no password), then:
-  - `setup-interfaces -a` → DHCP via fetch backend
-  - `apk add curl` → install tools
-
-### 3. SSH Project Manager (TODO)
-- From Alpine VM, SSH to dev server
-- Or: use fetch backend to reach localhost services
-
-### 4. Multi-VM Dashboard (TODO)
-- Run multiple VMs simultaneously
-- Tab-based UI
 
 ---
 
@@ -205,18 +162,24 @@ v86controlpanel/
 ### From this project
 - v86 npm package works out of the box — just need bios files + disk images
 - BIOS files: `https://github.com/copy/v86/raw/master/bios/`
-- Demo images: `https://i.copy.sh/{freedos722.img,linux.iso,dsl-4.11.rc2.iso,kolibri.img}`
 - Screen container needs exact HTML structure (div + canvas)
-- `serial_container_xtermjs` — pass DOM element, v86 creates Terminal internally (needs `window.Terminal` from xterm.js CDN)
-- Alpine: boot via bzimage+initrd, NOT ISO (ISOLINUX hangs in v86)
-- **FreeDOS HD images MUST have MBR partition table** — raw FAT16 without partition table = "Invalid drive C:"
-- **Partition must start at sector 63** (classic CHS) — sector 2048 (modern) causes "Error reading from drive C:"
-- **v86 ide.js hardcodes geometry: 16 heads, 63 sectors/track** — image size must be exact multiple of cylinder size (16×63×512 = 516096 bytes)
-- **MBR partition CHS values must match v86 geometry** — sfdisk writes wrong CHS with its own geometry assumption
-- **FAT16 BPB must match v86 geometry** — use `mkfs.fat -h 63 -g 16/63` to set heads=16, SPT=63, hidden=63
-- **Remove `async: true` for game disk images** — async = HTTP fetch per sector read = extremely slow; preload = instant RAM reads
-- **Duplicate `const` declarations in same function scope** = entire `<script>` block fails silently
-- Chromium in v86 is impossible (32-bit, single-core, too slow) — use noVNC + real Chromium instead
+- `serial_container_xtermjs` — pass DOM element, v86 creates Terminal internally
+- Alpine: boot via bzimage+initrd, needs ISO as cdrom for modloop
+- Alpine 3.23 initrd requires boot media (ISO) to find modloop — without it drops to emergency shell
+- **9front ISO**: 460MB, use `async: true` + `acpi: true`, 128MB RAM, load as hda not cdrom
+- **9front download**: 9front.org is slow but works; only9fans.com mirror has stale nightly numbers
+- **js-dos v8 API**: `Dos(element, { url: "bundle.jsdos" })` — simplest integration
+- **js-dos CDN URLs**: `https://v8.js-dos.com/latest/js-dos.js` + `js-dos.css`
+- **js-dos bundles**: .jsdos = ZIP with game files + .jsdos/dosbox.conf
+- **cdn.dos.zone CORS**: Blocks cross-origin requests — must download bundles and serve locally
+- **dos.zone iframe CSP**: frame-ancestors blocks embedding — can't use iframe approach
+- **Bundle URL pattern**: `cdn.dos.zone/custom/dos/{game}.jsdos` — not all games available
+- **C&C bundle**: Found via scraping dos.zone page source: `cc_gdi_novid.jsdos`
+- **xterm.js width issue**: xterm renders at fixed column width, doesn't auto-resize; CSS fix with `width: 100% !important` on `.xterm`, `.xterm-screen`, `.xterm-viewport`
+- **Mouse lock for graphical OSes**: `emulator.lock_mouse()` on screen click, Esc to release
+- **curl -s hides errors** — never use silent mode, always show progress
+- **mv -f needed** for read-only files in non-interactive shell
+- Chromium in v86 is impossible (32-bit, single-core, too slow) — use noVNC + real Chromium
 - Flask replaces python http.server when you need API endpoints
 - nginx `client_max_body_size` needed for large uploads (VM states)
 - **Never use sed to edit config files** — read fully, write cleanly
@@ -253,39 +216,23 @@ Ports: 5900 (VNC), 6080 (websockify)
 - Location: `/novnc/websockify` → WebSocket upgrade
 - Config file: `/etc/nginx/sites-available/dev-proxy`
 
-### Building Doom HD Image
-```bash
-# v86 hardcodes 16 heads, 63 SPT — image must match exactly
-HEADS=16; SPT=63; CYLS=32
-TOTAL=$((CYLS * HEADS * SPT))  # 32256 sectors = 16515072 bytes
-dd if=/dev/zero of=doom_hd.img bs=512 count=$TOTAL
-
-# Write MBR with python (sfdisk uses wrong geometry)
-python3 -c "
-import struct
-with open('doom_hd.img','r+b') as f:
-    h,sc,c = 1, 0x01, 0x00  # start CHS 0/1/1
-    eh,esc,ec = 15, 0x3f, 0x1f  # end CHS 31/15/63
-    f.seek(0x1BE)
-    f.write(struct.pack('<BBBBBBBBII',0x80,h,sc,c,0x06,eh,esc,ec,63,32193))
-    f.seek(0x1FE); f.write(b'\x55\xAA')
-"
-
-# Format with matching BPB geometry
-LOOP=$(sudo losetup --find --show --offset 32256 --sizelimit $((32193*512)) doom_hd.img)
-sudo mkfs.fat -F 16 -h 63 -g 16/63 -n DOOM $LOOP
-sudo mount $LOOP /mnt/doom
-# Copy KERNEL.SYS, COMMAND.COM from FreeDOS floppy
-# Copy DOOM/DOOM.EXE, DOOM/DOOM1.WAD
-# Create AUTOEXEC.BAT: C:\ / CD DOOM / DOOM.EXE -nomusic -nosfx
-```
-
 ### Image Sources
 ```bash
-curl -sL -o images/freedos722.img "https://i.copy.sh/freedos722.img"
-curl -sL -o images/dsl.iso "https://i.copy.sh/dsl-4.11.rc2.iso"
+# Alpine 3.23
+curl -sL -o images/alpine.iso "https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86/alpine-virt-3.23.3-x86.iso"
+# Extract kernel/initrd: mount ISO, copy boot/vmlinuz-virt + boot/initramfs-virt
+
+# TinyCore 17
+curl -sL -o images/tinycore.iso "http://tinycorelinux.net/17.x/x86/release/TinyCore-current.iso"
+
+# KolibriOS
 curl -sL -o images/kolibri.img "https://i.copy.sh/kolibri.img"
-curl -sL -o images/tinycore.iso "http://tinycorelinux.net/15.x/x86/release/TinyCore-current.iso"
-curl -sL -o images/alpine.iso "https://dl-cdn.alpinelinux.org/alpine/v3.19/releases/x86/alpine-virt-3.19.1-x86.iso"
-# Extract Alpine kernel/initrd: mount ISO, copy boot/vmlinuz-virt + boot/initramfs-virt
+
+# 9front (Jan 2026 release, 386)
+curl -L -o images/9front.iso.gz "http://9front.org/iso/9front-11554.386.iso.gz" && gunzip images/9front.iso.gz
+
+# js-dos bundles
+curl -sL -o jsdos/doom.jsdos "https://cdn.dos.zone/custom/dos/doom.jsdos"
+curl -sL -o jsdos/cnc.jsdos "https://cdn.dos.zone/custom/dos/cc_gdi_novid.jsdos"
+# etc.
 ```

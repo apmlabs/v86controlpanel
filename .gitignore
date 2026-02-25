@@ -4,6 +4,7 @@ node_modules/
 # OS disk images (large, download separately)
 images/
 bios/
+jsdos/
 
 # Saved VM states (large)
 states/

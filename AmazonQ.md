@@ -1,29 +1,58 @@
 # Amazon Q - v86 Control Panel Context
 
-**Last Updated**: 2026-02-23T18:30:00Z
+**Last Updated**: 2026-02-25T18:38:00Z
 **Working Directory**: `/home/ubuntu/mcpprojects/v86controlpanel/`
-**Status**: ✅ Full control panel with 7 profiles + Chromium + server-side state + DOOM WORKING
+**Status**: ✅ Modernized 6-profile panel + js-dos games + Chromium — ALL WORKING
 
 ## Project: v86 Control Panel
 
-Browser-based x86 VM control panel powered by v86 — boot OS images, run Doom, manage projects via SSH.
+Browser-based x86 VM control panel powered by v86 + js-dos — boot OS images, play DOS games, manage projects via SSH, all from a single web UI.
 
-## Current Phase: Full Control Panel + Chromium
+## Current Phase: Modernized Panel — Complete
 
 ### What Works
-- ✅ 7 OS profiles: Doom, FreeDOS, Alpine, DSL, TinyCore, KolibriOS, Chromium
-- ✅ Doom on FreeDOS: boot floppy + MBR-partitioned HD (sector 63 CHS), preloaded, plays!
-- ✅ Alpine Linux: bzimage+initrd boot, xterm.js serial terminal
-- ✅ DSL + TinyCore: graphical X11 desktops with fetch networking
-- ✅ KolibriOS: native GUI with built-in browser
-- ✅ Chromium 145: real browser via noVNC (Xvfb + x11vnc + websockify)
-- ✅ Server-side state persistence: Flask API, gzip compressed, cross-browser
-- ✅ systemd services: v86panel (Flask:8087), chromium-vnc (VNC:5900, WS:6080)
-- ✅ nginx: /v86/ + /novnc/ routes with WebSocket upgrade
+- ✅ 6 profiles: Alpine 3.23, TinyCore 17, KolibriOS, js-dos (10 games), 9front, Chromium
+- ✅ Alpine 3.23: kernel 6.18.7-0-virt, bzimage+initrd+ISO boot, xterm.js serial terminal
+- ✅ TinyCore 17: kernel 6.18, GUI Linux with fetch networking
+- ✅ KolibriOS: instant boot ASM OS, mouse lock on click
+- ✅ js-dos: 10 DOS games locally hosted (Doom, C&C, Prince of Persia, WarCraft, etc.)
+- ✅ 9front: Plan 9 fork, Jan 2026 release, 460MB ISO, async loading, ACPI
+- ✅ Chromium 145: real browser via noVNC
+- ✅ Server-side state persistence: Flask API, gzip compressed
+- ✅ Mouse lock for graphical OSes (click screen, Esc to release)
 
 ### What's Next
 1. SSH project manager from Alpine VM
 2. Multi-VM dashboard (tabs)
+3. Test 9front boot (460MB async load)
+
+---
+
+## Session 3 - February 25, 2026
+
+### Summary
+Full OS modernization: replaced old profiles (Doom/FreeDOS/DSL) with Alpine 3.23, TinyCore 17, 9front, js-dos. All working.
+
+### Work Done
+1. Downloaded Alpine 3.23 virt ISO, extracted kernel 6.18.7 + initrd, replaced old files
+2. Downloaded TinyCore 17 (25MB), replaced old tinycore.iso
+3. Downloaded 9front Jan 2026 release (460MB 386 ISO) from 9front.org
+4. Rewrote index.html: 6 new profiles, removed Doom/FreeDOS/DSL
+5. Fixed Alpine boot: added ISO as cdrom for modloop (was dropping to emergency shell)
+6. Fixed xterm.js width: CSS overrides for `.xterm`, `.xterm-screen`, `.xterm-viewport`
+7. Added mouse lock for graphical OSes (KolibriOS, TinyCore, 9front)
+8. Integrated js-dos v8 API with locally hosted game bundles
+9. Downloaded 10 game bundles to jsdos/ directory (Doom, Doom II, C&C, Prince, WarCraft, Lemmings, Heretic, GTA, NFS, Digger)
+10. Cleaned up old images (doom.img, doom_boot.img, dsl.iso, freedos722.img, alpine-3.23.iso)
+
+### Issues Fixed
+- Alpine emergency shell: initrd needs ISO as cdrom to find modloop
+- xterm.js black gap on right: fixed with CSS `width: 100% !important` + hidden scrollbar
+- js-dos "Dos is not defined": wrong CDN URL, fixed to v8.js-dos.com/latest/
+- cdn.dos.zone CORS blocks: downloaded all bundles locally
+- dos.zone iframe CSP blocks: switched from iframe to direct js-dos API
+- 9front download: 9front.org slow start but works (15MB/s once connected), only9fans.com mirror has stale build numbers
+- C&C bundle: not at obvious URL, found via scraping dos.zone page source → `cc_gdi_novid.jsdos`
 
 ---
 
@@ -42,15 +71,6 @@ Major expansion: 7 OS profiles, Chromium via noVNC, server-side state persistenc
 7. Replaced python http.server with Flask (server.py) for state API
 8. Server-side state save/restore: PUT/GET /api/states/<profile>, gzip compressed
 9. Rebuilt Doom HD image with MBR partition table, sector 63 start (CHS)
-
-### Issues Fixed
-- All JS broken: Duplicate const profile in same function scope - script fails silently
-- Alpine ISOLINUX hang: Switched to bzimage+initrd
-- Doom Invalid drive C: No partition table - rebuilt with MBR
-- Doom Error reading from drive C: Sector 2048 start - rebuilt with sector 63
-- Doom "suspect partition" + read errors: MBR CHS and BPB geometry didn't match v86's hardcoded 16H/63S
-- Doom extremely slow init: async disk = HTTP per sector read; preload fixes it
-- Flask crash: str_replace merged two lines - fixed newline
 
 ---
 
